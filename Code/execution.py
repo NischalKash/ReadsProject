@@ -14,9 +14,15 @@ def function(ba,sheet_num,wb,input_file):
     for i in data1:
         key = int(i[0])
         if key not in dictionary:
-            dictionary[key] = {i[1]:float(i[2])}
+            if i[1]=="Nuclear":
+                dictionary[key] = {i[1].lower(): float(i[2])}
+            else:
+                dictionary[key] = {i[1]:float(i[2])}
         else:
-            dictionary[key][i[1]] = float(i[2])
+            if i[1]=="Nuclear":
+                dictionary[key][i[1].lower()] = float(i[2])
+            else:
+                dictionary[key][i[1]] = float(i[2])
 
     carbon_type = ["can-imports","Coal-IGCC","coal-new","CoalOldScr","CoalOldUns","Gas-CC","Gas-CT","lfill-gas","o-g-s"]
     comparing_data = ["can-imports","Coal-IGCC","coal-new","CoalOldScr","CoalOldUns","Gas-CC","Gas-CT","lfill-gas","o-g-s","biopower","battery","distPV","nuclear","pumped-hydro","upv_2","upv_3","upv_4","upv_5","upv_6","upv_7","dupv_2","dupv_3","dupv_4","dupv_5","dupv_6","dupv_7","wind-ofs_1","wind-ofs_2","wind-ofs_3","wind-ofs_4","wind-ofs_7","wind-ofs_8","wind-ofs_9","wind-ofs_10","wind-ofs_11","wind-ofs_12","wind-ofs_13","wind-ons_1","wind-ons_2","wind-ons_3","wind-ons_4","wind-ons_5","wind-ons_6","wind-ons_7","wind-ons_8","wind-ons_9","wind-ons_10","csp1_12","csp2_10","csp2_11","csp2_12","hydND","hydUD","hydUND","hydNPND","hydED","hydEND","geohydro_pflash_1"]
@@ -28,10 +34,11 @@ def function(ba,sheet_num,wb,input_file):
     year_dict = {2022:1/15,2024:2/15,2026:3/15,2028:4/15,2030:5/15,2032:6/15,2034:7/15,2036:8/15,2038:9/15,2040:10/15,2042:11/15,2044:12/15,2046:13/15,2048:14/15,2050:15/15}
     gen_change = {}
     for i in comparing_data:
-        if i in dictionary[ba]:
-            gen_total[i] = dictionary[ba][i]
-        else:
-            gen_total[i] = 0
+        if ba in dictionary:
+            if i in dictionary[ba]:
+                gen_total[i] = dictionary[ba][i]
+            else:
+                gen_total[i] = 0
 
     gen_total_main = 0
     carbon_type_total = 0
@@ -42,12 +49,13 @@ def function(ba,sheet_num,wb,input_file):
                 gen_total_main += dictionary[i][j]
     gen_total_main+=10**(-28)
     for a in carbon_type:
-        carbon_type_total+=gen_total[a]
+        if a in gen_total:
+            carbon_type_total+=gen_total[a]
 
-    percent_carbon=carbon_type_total/gen_total_main
+    percent_carbon=(carbon_type_total/gen_total_main)+10**(-28)
     percent_change = percent_carbon*year_dict[int(year)]
-    gen_change_total = gen_total_main*percent_change
-    non_carbon_total = gen_total_main-carbon_type_total
+    gen_change_total = (gen_total_main*percent_change)+10**(-28)
+    non_carbon_total = gen_total_main-carbon_type_total+10**(-28)
 
     for i in gen_total:
         if i in carbon_type:
@@ -90,7 +98,7 @@ def function(ba,sheet_num,wb,input_file):
     gen_change['distPV'] = gen_change_total*0.6/sum_off
     for i in comparing_data:
         if i not in gen_change:
-            if viability[i]==1:
+            if i in viability and viability[i]==1:
                 gen_change[i] = gen_change_total*0.6/sum_off
             else:
                 gen_change[i] = 0
@@ -99,9 +107,19 @@ def function(ba,sheet_num,wb,input_file):
     new_gen = {}
     for i in comparing_data:
         if i in carbon_type:
-            new_gen[i] = gen_total[i]-gen_change[i]
+            if i in gen_change and i in gen_total:
+                new_gen[i] = gen_total[i]-gen_change[i]
+            elif i in gen_total and i not in gen_change:
+                new_gen[i] = gen_total[i]
+            else:
+                new_gen[i]=0
         else:
-            new_gen[i] = gen_total[i] + gen_change[i]
+            if i in gen_change and i in gen_total:
+                new_gen[i] = gen_total[i] + gen_change[i]
+            elif i in gen_total and i not in gen_change:
+                new_gen[i] = gen_total[i]
+            else:
+                new_gen[i] = 0
 
     sheet1 = wb.add_sheet('Sheet '+str(sheet_num))
     for i in range(1,50):
@@ -122,11 +140,18 @@ def function(ba,sheet_num,wb,input_file):
 
     variable_count = 1
     for i in gen_change:
-        sheet1.write(variable_count,4,i)
-        sheet1.write(variable_count, 5, gen_total[i])
-        sheet1.write(variable_count, 6, gen_change[i])
-        sheet1.write(variable_count, 7, new_gen[i])
-        variable_count+=1
+        if i in gen_total:
+            sheet1.write(variable_count,4,i)
+            sheet1.write(variable_count, 5, gen_total[i])
+            sheet1.write(variable_count, 6, gen_change[i])
+            sheet1.write(variable_count, 7, new_gen[i])
+            variable_count+=1
+        else:
+            sheet1.write(variable_count, 4, i)
+            sheet1.write(variable_count, 5, 0)
+            sheet1.write(variable_count, 6, gen_change[i])
+            sheet1.write(variable_count, 7, new_gen[i])
+            variable_count += 1
 
     sheet1.write(0,8,'BA')
     sheet1.write(1, 8, ba)
@@ -151,10 +176,10 @@ def function(ba,sheet_num,wb,input_file):
     return new_gen
 
 files_name = glob.glob("Input_Files/*.csv")
-print(files_name)
 main_dictionary = {}
-row_count = 0
+
 for file in files_name:
+    row_count = 0
     print(file)
     get_name = file.split('/')
     get_name = get_name[-1].split('.')
