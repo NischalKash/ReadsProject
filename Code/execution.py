@@ -9,8 +9,11 @@ def function(ba,sheet_num,wb,input_file):
         reader = csv.reader(file)
         for row in reader:
             data1.append(row)
+    #Stores the data of input file into data1 which is a 2D Array
     data1[0][0] = 1
+
     dictionary = {}
+    #creating a dictionary data struture to store the input data in the follwing format eg : 1:{'nuclear':25.56}
     for i in data1:
         key = int(i[0])
         if key not in dictionary:
@@ -31,6 +34,7 @@ def function(ba,sheet_num,wb,input_file):
     year_find = input_file.split('/')
     year_find = year_find[-1]
     year = year_find[0:4]
+    #Finds out the year of the input file
     year_dict = {2022:1/15,2024:2/15,2026:3/15,2028:4/15,2030:5/15,2032:6/15,2034:7/15,2036:8/15,2038:9/15,2040:10/15,2042:11/15,2044:12/15,2046:13/15,2048:14/15,2050:15/15}
     gen_change = {}
     for i in comparing_data:
@@ -39,7 +43,7 @@ def function(ba,sheet_num,wb,input_file):
                 gen_total[i] = dictionary[ba][i]
             else:
                 gen_total[i] = 0
-
+    #Calculating the gen_total values with respect to ba value parsed to the function and taking into consideration the dictionary
     gen_total_main = 0
     carbon_type_total = 0
 
@@ -47,10 +51,13 @@ def function(ba,sheet_num,wb,input_file):
         if i==ba:
             for j in dictionary[i]:
                 gen_total_main += dictionary[i][j]
+    #Calculating the value of gen_total_main with respect to the ba values
+
     gen_total_main+=10**(-28)
     for a in carbon_type:
         if a in gen_total:
             carbon_type_total+=gen_total[a]
+    #Finds the sum of gen_totals with respect to the carbon type instance
 
     percent_carbon=(carbon_type_total/gen_total_main)+10**(-28)
     percent_change = percent_carbon*year_dict[int(year)]
@@ -60,11 +67,12 @@ def function(ba,sheet_num,wb,input_file):
     for i in gen_total:
         if i in carbon_type:
             gen_change[i]=gen_total[i]*year_dict[int(year)]
-
+    #Calculates the gen change and stores it as a dictionary with respect to all instances in gen_total and year of input data!
     gen_change['biopower'] = 0.4*gen_change_total
     gen_change['battery'] = 0
     gen_change['nuclear'] = 0
     gen_change['pumped-hydro'] = 0
+    #Hard coded as these remain constant!
     sum_off = 0
     viability = {}
     viability['battery'] = 0
@@ -79,10 +87,12 @@ def function(ba,sheet_num,wb,input_file):
     viability['hydEND'] = 0
     viability['geohydro_pflash_1'] = 0
     viability['biopower'] = 1
+    # Hard coded as these remain constant!
 
     dataframe = pd.read_excel('viability_matrix.xlsx')
 
     df_dict = dataframe.to_dict()
+    #Converted all the viability matrixes into dataframes using pandas
     matrix = {}
 
     for i, j in dataframe.iterrows():
@@ -94,14 +104,18 @@ def function(ba,sheet_num,wb,input_file):
     for i in viability:
         sum_off+=viability[i]
     sum_off-=1
+    #Calculates the sum of viability matrix and stores in sum_off! this logic was given in the excel sheet
 
     gen_change['distPV'] = gen_change_total*0.6/sum_off
+    #Hardcoded as it remains the same
+
     for i in comparing_data:
         if i not in gen_change:
             if i in viability and viability[i]==1:
                 gen_change[i] = gen_change_total*0.6/sum_off
             else:
                 gen_change[i] = 0
+    #Some values of gen_change are having the above formula, hence had to write a different logic for it.
 
     non_base_change = gen_change_total-gen_change['biopower']
     new_gen = {}
@@ -120,7 +134,9 @@ def function(ba,sheet_num,wb,input_file):
                 new_gen[i] = gen_total[i]
             else:
                 new_gen[i] = 0
+    #Calculates new_gen with respect to previously calculated gen_total and gen_change
 
+    #The below logic is completely based on writing the given outputs onto the excel sheet and generating it sheet by sheet for each ba values!
     sheet1 = wb.add_sheet('Sheet '+str(sheet_num))
     for i in range(1,50):
         sheet1.write(i, 0, i)
@@ -175,18 +191,24 @@ def function(ba,sheet_num,wb,input_file):
 
     return new_gen
 
+
 files_name = glob.glob("Input_Files/*.csv")
+#Stores all the file names in the Inputs/ Folder in an array structure
 main_dictionary = {}
 
 for file in files_name:
     row_count = 0
-    print(file)
     get_name = file.split('/')
     get_name = get_name[-1].split('.')
+    #Retreives the file name so that we need it later for Output file
     wb = Workbook()
+    #WorkBook instance created
     for i in range(1,135):
         catch = function(i,i,wb,file)
         main_dictionary[i] = catch
+
+    #Taylor had asked output in a format! Hence written the next part of the code for this format
+    #This catches the output generated from function and the below code is only for creating a new excel sheet with outputs!
     put_name = "Output_Files/"+get_name[0]+'_output'+'.xls'
     wb.save(put_name)
     wb2 = Workbook()
@@ -199,6 +221,7 @@ for file in files_name:
             row_count+=1
     put_name = "Output_Files/" + get_name[0] + '_output_main_sheet' + '.xls'
     wb2.save(put_name)
+    #Saves the workbook and puts into the folder Output_Files/
 
 
 
